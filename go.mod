@@ -1,3 +1,3 @@
-module github.com/your-org/tripo3d-sdk-go
+module github.com/vast-enterprise/tripo-go-sdk
 
 go 1.21

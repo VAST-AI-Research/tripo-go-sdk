@@ -17,14 +17,23 @@
 
 ## 安装
 
-本模块尚未发布到公共 registry，请使用 `replace` 指令引入：
-
 ```bash
-go mod edit -replace github.com/your-org/tripo3d-sdk-go=../tripo3d-sdk-go
-go mod tidy
+go get github.com/vast-enterprise/tripo-go-sdk
 ```
 
-或者直接把整个目录复制进你的模块，并调整 import 路径。
+如果仓库是私有的，需要让 Go 通过 SSH 拉取，并把它标记为私有模块以跳过公共校验和数据库：
+
+```bash
+export GOPRIVATE=github.com/vast-enterprise/*
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+```
+
+如果是基于本地代码进行开发调试，可以改用 `replace` 指令：
+
+```bash
+go mod edit -replace github.com/vast-enterprise/tripo-go-sdk=../tripo3d-sdk-go
+go mod tidy
+```
 
 先在 [Tripo 控制台](https://platform.tripo3d.ai/) 创建 API Key 并导出：
 
@@ -43,7 +52,7 @@ import (
 	"log"
 	"time"
 
-	tripo3d "github.com/your-org/tripo3d-sdk-go"
+	tripo3d "github.com/vast-enterprise/tripo-go-sdk"
 )
 
 func main() {
