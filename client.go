@@ -1,7 +1,10 @@
-// Package tripo3d is an unofficial Go SDK for the Tripo3D v3 API
-// (https://developers.tripo3d.com/en/docs/introduction) — an AI 3D
+// Package tripo3d is the official Go SDK for the Tripo3D v3 API
+// (https://developers.tripo3d.ai/en/docs/introduction) — an AI 3D
 // generation platform covering text-to-3D, image-to-3D, multiview-to-3D,
 // re-texturing, mesh editing, auto-rigging, and animation retargeting.
+//
+// Global API base URL: https://openapi.tripo3d.ai/v3
+// China API base URL:  https://openapi.tripo3d.com/v3
 //
 //	client, err := tripo3d.NewClient(tripo3d.ClientOptions{}) // reads TRIPO_API_KEY
 //	taskID, err := client.TextToModel(ctx, tripo3d.TextToModelParams{Prompt: "a cute cat"})

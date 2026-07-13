@@ -1,7 +1,8 @@
 package tripo3d
 
-// DefaultBaseURL is the default REST endpoint for the Tripo3D v3 openapi
-// service.
+// DefaultBaseURL is the China mainland REST endpoint for the Tripo3D v3
+// openapi service. For overseas / global traffic use
+// "https://openapi.tripo3d.ai/v3" via ClientOptions.BaseURL.
 const DefaultBaseURL = "https://openapi.tripo3d.com/v3"
 
 // TaskStatus is the lifecycle status of a task, as returned by

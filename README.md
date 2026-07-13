@@ -2,7 +2,7 @@
 
 **English** · [简体中文](./README.zh-CN.md)
 
-An unofficial **Go SDK** for the [Tripo3D v3 API](https://developers.tripo3d.com/zh/docs/introduction) — a full AI 3D generation platform covering text-to-3D, image-to-3D, multiview-to-3D, re-texturing, mesh editing, auto-rigging and animation retargeting.
+The official **Go SDK** for the [Tripo3D v3 API](https://developers.tripo3d.ai/en/docs/introduction) — a full AI 3D generation platform covering text-to-3D, image-to-3D, multiview-to-3D, re-texturing, mesh editing, auto-rigging and animation retargeting.
 
 - Zero third-party dependencies — built entirely on `net/http` and the standard library.
 - `context.Context` on every method for cancellation and deadlines.
@@ -11,7 +11,10 @@ An unofficial **Go SDK** for the [Tripo3D v3 API](https://developers.tripo3d.com
 - `WaitForTask` poller with a progress callback.
 - Sibling SDK to [`tripo3d-sdk-js`](../tripo3d-sdk-js) and [`tripo3d-sdk-rust`](../tripo3d-sdk-rust) — same API surface, idiomatic per language.
 
-> Base URL: `https://openapi.tripo3d.com/v3` — this SDK targets the **v3** REST endpoints under `developers.tripo3d.com`, not the older `/v2/openapi/task` endpoint.
+> Base URL (global): `https://openapi.tripo3d.ai/v3`  
+> Base URL (China): `https://openapi.tripo3d.com/v3`  
+> This SDK targets the **v3** REST API, not the older `/v2/openapi/task` endpoint.  
+> Pass `BaseURL` to select your region (see [Client options](#client-options)).
 
 ---
 
@@ -35,7 +38,7 @@ go mod edit -replace github.com/VAST-AI-Research/tripo-go-sdk=../tripo3d-sdk-go
 go mod tidy
 ```
 
-Create an API key on the [Tripo console](https://platform.tripo3d.ai/) and export it:
+Create an API key on the [Tripo console](https://platform.tripo3d.ai/) and export it (use [platform.tripo3d.com](https://platform.tripo3d.com/) in China):
 
 ```bash
 export TRIPO_API_KEY="tsk_..."
@@ -56,7 +59,10 @@ import (
 )
 
 func main() {
-	client, err := tripo3d.NewClient(tripo3d.ClientOptions{}) // reads TRIPO_API_KEY
+	client, err := tripo3d.NewClient(tripo3d.ClientOptions{
+		// reads TRIPO_API_KEY
+		BaseURL: "https://openapi.tripo3d.ai/v3", // use https://openapi.tripo3d.com/v3 in China
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +102,7 @@ func main() {
 ```go
 tripo3d.NewClient(tripo3d.ClientOptions{
 	APIKey:     "",           // defaults to TRIPO_API_KEY env var
-	BaseURL:    "",           // default: https://openapi.tripo3d.com/v3
+	BaseURL:    "",           // global: https://openapi.tripo3d.ai/v3 · China: https://openapi.tripo3d.com/v3
 	HTTPClient: nil,          // default: &http.Client{}
 	Timeout:    0,            // per-request timeout, default 60s
 	Retries:    0,            // extra attempts on 5xx / network errors; 0 = default (2), -1 = disabled
@@ -320,10 +326,12 @@ client_test.go  # httptest-backed unit tests
 
 ## Reference
 
-- API reference (English): https://developers.tripo3d.com/en/docs/introduction
-- API reference (中文): https://developers.tripo3d.com/zh/docs/introduction
+- API docs: https://developers.tripo3d.ai/en/docs/introduction
 - Endpoint details: https://docs.tripo3d.ai/
+- Tripo console: https://platform.tripo3d.ai/
+- API base URL (global): `https://openapi.tripo3d.ai/v3`
+- API base URL (China): `https://openapi.tripo3d.com/v3`
 
 ## License
 
-MIT — see `LICENSE`. Not affiliated with, or endorsed by, VAST AI / Tripo3D.
+MIT — see `LICENSE`.

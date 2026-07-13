@@ -2,7 +2,7 @@
 
 [English](./README.md) · **简体中文**
 
-一个非官方的 **Go SDK**，用于访问 [Tripo3D v3 API](https://developers.tripo3d.com/zh/docs/introduction) —— 覆盖 AI 3D 生成的完整能力：文生 3D、图生 3D、多视角生 3D、重贴图、网格编辑、自动绑骨与动画重定向。
+Tripo 官方 **Go SDK**，用于访问 [Tripo3D v3 API](https://developers.tripo3d.com/zh/docs/introduction) —— 覆盖 AI 3D 生成的完整能力：文生 3D、图生 3D、多视角生 3D、重贴图、网格编辑、自动绑骨与动画重定向。
 
 - **零第三方依赖** —— 完全基于 `net/http` 与标准库构建。
 - 所有方法都接受 `context.Context`，天然支持取消与超时。
@@ -11,7 +11,10 @@
 - `WaitForTask` 轮询器，支持进度回调。
 - 与 [`tripo3d-sdk-js`](../tripo3d-sdk-js)、[`tripo3d-sdk-rust`](../tripo3d-sdk-rust) 是同源姊妹 SDK —— API 能力一致，各自遵循语言惯例。
 
-> Base URL：`https://openapi.tripo3d.com/v3` —— 本 SDK 面向 **v3** REST 接口，**不是**旧的 `/v2/openapi/task` 接口。
+> 国内 Base URL：`https://openapi.tripo3d.com/v3`  
+> 海外 Base URL：`https://openapi.tripo3d.ai/v3`  
+> 本 SDK 面向 **v3** REST 接口，**不是**旧的 `/v2/openapi/task` 接口。  
+> 可通过 `BaseURL` 选择区域（见[客户端参数](#客户端参数)）。
 
 ---
 
@@ -35,7 +38,7 @@ go mod edit -replace github.com/VAST-AI-Research/tripo-go-sdk=../tripo3d-sdk-go
 go mod tidy
 ```
 
-先在 [Tripo 控制台](https://platform.tripo3d.ai/) 创建 API Key 并导出：
+先在 [Tripo 控制台](https://platform.tripo3d.com/) 创建 API Key 并导出（海外请使用 [platform.tripo3d.ai](https://platform.tripo3d.ai/)）：
 
 ```bash
 export TRIPO_API_KEY="tsk_..."
@@ -96,7 +99,7 @@ func main() {
 ```go
 tripo3d.NewClient(tripo3d.ClientOptions{
 	APIKey:     "",           // 默认读取 TRIPO_API_KEY 环境变量
-	BaseURL:    "",           // 默认：https://openapi.tripo3d.com/v3
+	BaseURL:    "",           // 国内：https://openapi.tripo3d.com/v3 · 海外：https://openapi.tripo3d.ai/v3
 	HTTPClient: nil,          // 默认：&http.Client{}
 	Timeout:    0,            // 单次请求超时，默认 60 秒
 	Retries:    0,            // 5xx / 网络错误的额外重试次数；0 = 默认值(2)，-1 = 禁用重试
@@ -336,10 +339,12 @@ client_test.go  # 基于 httptest 的单元测试
 
 ## 相关链接
 
-- API 文档（英文）：https://developers.tripo3d.com/en/docs/introduction
-- API 文档（中文）：https://developers.tripo3d.com/zh/docs/introduction
-- 每个端点参数细节：https://docs.tripo3d.ai/
+- API 文档：https://developers.tripo3d.com/zh/docs/introduction
+- 每个端点参数细节：https://docs.tripo3d.com/
+- Tripo 控制台：https://platform.tripo3d.com/
+- API 端点（国内）：`https://openapi.tripo3d.com/v3`
+- API 端点（海外）：`https://openapi.tripo3d.ai/v3`
 
 ## 许可协议
 
-MIT —— 见 `LICENSE`。本项目与 VAST AI / Tripo3D 官方无隶属关系。
+MIT —— 见 `LICENSE`。
