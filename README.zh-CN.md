@@ -18,20 +18,20 @@
 ## 安装
 
 ```bash
-go get github.com/vast-enterprise/tripo-go-sdk
+go get github.com/VAST-AI-Research/tripo-go-sdk
 ```
 
 如果仓库是私有的，需要让 Go 通过 SSH 拉取，并把它标记为私有模块以跳过公共校验和数据库：
 
 ```bash
-export GOPRIVATE=github.com/vast-enterprise/*
+export GOPRIVATE=github.com/VAST-AI-Research/*
 git config --global url."git@github.com:".insteadOf "https://github.com/"
 ```
 
 如果是基于本地代码进行开发调试，可以改用 `replace` 指令：
 
 ```bash
-go mod edit -replace github.com/vast-enterprise/tripo-go-sdk=../tripo3d-sdk-go
+go mod edit -replace github.com/VAST-AI-Research/tripo-go-sdk=../tripo3d-sdk-go
 go mod tidy
 ```
 
@@ -52,7 +52,7 @@ import (
 	"log"
 	"time"
 
-	tripo3d "github.com/vast-enterprise/tripo-go-sdk"
+	tripo3d "github.com/VAST-AI-Research/tripo-go-sdk"
 )
 
 func main() {

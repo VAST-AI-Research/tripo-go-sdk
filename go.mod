@@ -1,3 +1,3 @@
-module github.com/vast-enterprise/tripo-go-sdk
+module github.com/VAST-AI-Research/tripo-go-sdk
 
 go 1.21

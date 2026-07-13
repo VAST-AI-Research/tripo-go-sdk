@@ -18,20 +18,20 @@ An unofficial **Go SDK** for the [Tripo3D v3 API](https://developers.tripo3d.com
 ## Installation
 
 ```bash
-go get github.com/vast-enterprise/tripo-go-sdk
+go get github.com/VAST-AI-Research/tripo-go-sdk
 ```
 
 If the repository is private, configure Go to fetch it over SSH instead of HTTPS and mark it as private so `go mod` skips the public checksum database:
 
 ```bash
-export GOPRIVATE=github.com/vast-enterprise/*
+export GOPRIVATE=github.com/VAST-AI-Research/*
 git config --global url."git@github.com:".insteadOf "https://github.com/"
 ```
 
 For local development against a working copy of this repo, use a `replace` directive instead:
 
 ```bash
-go mod edit -replace github.com/vast-enterprise/tripo-go-sdk=../tripo3d-sdk-go
+go mod edit -replace github.com/VAST-AI-Research/tripo-go-sdk=../tripo3d-sdk-go
 go mod tidy
 ```
 
@@ -52,7 +52,7 @@ import (
 	"log"
 	"time"
 
-	tripo3d "github.com/vast-enterprise/tripo-go-sdk"
+	tripo3d "github.com/VAST-AI-Research/tripo-go-sdk"
 )
 
 func main() {
