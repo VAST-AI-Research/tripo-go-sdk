@@ -302,8 +302,9 @@ func (c *Client) ImageToMultiview(ctx context.Context, params ImageToMultiviewPa
 // EditMultiviewParams are the parameters for
 // POST /v3/generation/edit-multiview.
 type EditMultiviewParams struct {
-	// Input is the multiview image to edit: the task_id of an earlier
-	// image-to-multiview task, a file_token, or a public URL.
+	// Input is the task_id of an earlier successful image-to-multiview or
+	// edit-multiview task. The API documents file_token and URL inputs too,
+	// but the service currently rejects anything that is not a task_id.
 	Input FileDescriptor `json:"input"`
 
 	// Prompts holds 1 to 4 per-view edit instructions.
@@ -317,7 +318,7 @@ type EditMultiviewParams struct {
 // task_id.
 func (c *Client) EditMultiview(ctx context.Context, params EditMultiviewParams) (string, error) {
 	if params.Input.IsEmpty() {
-		return "", errors.New("tripo3d: EditMultiview: Input is required (task_id, file_token, or url)")
+		return "", errors.New("tripo3d: EditMultiview: Input is required (the task_id of a multiview task)")
 	}
 	if len(params.Prompts) == 0 || len(params.Prompts) > 4 {
 		return "", errors.New("tripo3d: EditMultiview: Prompts must contain 1 to 4 items")
