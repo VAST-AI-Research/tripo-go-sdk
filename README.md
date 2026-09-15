@@ -161,12 +161,20 @@ Every generation method returns a `task_id` (`string`). Use `WaitForTask` to awa
 
 ## Passing images / files
 
-Any field of type `FileDescriptor` (or `*FileDescriptor`) can be built with `tripo3d.File(...)`, which auto-detects URLs vs. bare file tokens:
+Every endpoint that takes an image or model accepts it through an `Input` field of type `FileDescriptor`. Build one with `tripo3d.File(...)` and let the server infer what the reference is — a public URL, a `file_token`, or the `task_id` of an earlier task whose output should be reused:
 
 ```go
-f1 := tripo3d.File("https://example.com/hero.png")   // -> FileDescriptor{URL: "..."}
-f2 := tripo3d.File("8f2a4c...")                       // -> FileDescriptor{FileToken: "..."}
-f3 := tripo3d.FileDescriptor{Object: &tripo3d.ObjectRef{Bucket: "tripo-data", Key: "uploads/abc.png"}}
+tripo3d.File("https://example.com/hero.png") // public URL
+tripo3d.File("8f2a4c...")                    // file_token from UploadFile
+tripo3d.File(previousTaskID)                 // reuse an earlier task's output
+```
+
+Use the explicit constructors when you'd rather not rely on inference:
+
+```go
+tripo3d.FileURL("https://example.com/hero.png")
+tripo3d.FileToken("8f2a4c...")
+tripo3d.FileDescriptor{Object: &tripo3d.ObjectRef{Bucket: "tripo-data", Key: "uploads/abc.png"}}
 ```
 
 Upload a local buffer to get a `file_token`:
@@ -176,7 +184,22 @@ data, _ := os.ReadFile("./hero.png")
 uploaded, err := client.UploadFile(ctx, data, "hero.png", "image/png")
 
 taskID, err := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-	File: tripo3d.File(uploaded.FileToken),
+	Input: tripo3d.File(uploaded.FileToken),
+})
+```
+
+Chaining tasks needs no download-and-reupload round trip — pass the upstream `task_id` straight in:
+
+```go
+imageID, _ := client.TextToImage(ctx, tripo3d.TextToImageParams{
+	Prompt: "a low-poly wooden treasure chest",
+	Model:  tripo3d.String(tripo3d.ImageModelSeedreamV5),
+})
+client.WaitForTask(ctx, imageID, tripo3d.WaitOptions{})
+
+modelID, _ := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
+	Input: tripo3d.File(imageID),
+	Model: tripo3d.String(tripo3d.ModelVersionP2),
 })
 ```
 
@@ -199,10 +222,10 @@ Every `*Params` struct also has an `Extra map[string]interface{}` field for forw
 ## End-to-end pipeline: game-ready character
 
 ```go
-// 1. Image -> 3D (low-poly P1 topology, mobile/game friendly)
+// 1. Image -> 3D (low-poly P series topology, mobile/game friendly)
 modelID, _ := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-	File:      tripo3d.File("https://example.com/hero.png"),
-	Model:     tripo3d.String(tripo3d.ModelVersionP1),
+	Input:     tripo3d.File("https://example.com/hero.png"),
+	Model:     tripo3d.String(tripo3d.ModelVersionP2),
 	FaceLimit: tripo3d.Int64(5000),
 	Texture:   tripo3d.Bool(true),
 })
@@ -261,7 +284,7 @@ if err != nil {
 	var timeoutErr *tripo3d.TimeoutError
 	switch {
 	case errors.As(err, &taskErr):
-		log.Printf("task %s failed: %s", taskErr.Task.TaskID, taskErr.Task.ErrorMsg)
+		log.Printf("task %s failed: %s", taskErr.Task.TaskID, taskErr.Task.ErrorMessage)
 	case errors.As(err, &timeoutErr):
 		log.Printf("gave up after %s — task %s", timeoutErr.Timeout, timeoutErr.TaskID)
 	default:
@@ -277,14 +300,46 @@ Cancel a poll with `context.WithTimeout` / `context.WithCancel` — `WaitForTask
 ## Constants
 
 ```go
-tripo3d.TaskStatusSuccess          // "success"
-tripo3d.AnimationWalk              // "preset:walk"
-tripo3d.RigTypeBiped               // "biped"
-tripo3d.RigSpecMixamo              // "mixamo"
-tripo3d.ModelVersionH31            // "v3.1-20260211"
-tripo3d.ModelVersionP1             // "P1-20260311"
-tripo3d.OutputFormatFBX            // "FBX"
+tripo3d.TaskStatusSuccess              // "success"
+tripo3d.AnimationWalk                  // "preset:walk"
+tripo3d.RigTypeBiped                   // "biped"
+tripo3d.RigSpecMixamo                  // "mixamo"
+tripo3d.ModelVersionH31                // "v3.1-20260211"
+tripo3d.ModelVersionP2                 // "P2-20260801"
+tripo3d.ImageModelSeedreamV5           // "seedream_v5"
+tripo3d.ImageModelChatImage25Sunburst  // "chat_image_2.5_sunburst"
+tripo3d.OutputFormatFBX                // "FBX"
 ```
+
+### 3D generation models
+
+| Constant | Value | Notes |
+| --- | --- | --- |
+| `ModelVersionH31` | `v3.1-20260211` | Latest, best quality (default) |
+| `ModelVersionH30` | `v3.0-20250812` | Stable, advanced features |
+| `ModelVersionH25` | `v2.5-20250123` | Legacy; does not accept `GeometryQuality` |
+| `ModelVersionP1` | `P1-20260311` | Low-poly, clean topology |
+| `ModelVersionP2` | `P2-20260801` | Next-gen P series, quad output. Preview |
+
+`Quad` is accepted only by `ModelVersionP2` within the P series — sending it with `ModelVersionP1` returns a `400`. P1 also rejects `SmartLowPoly`, `GenerateParts`, and `GeometryQuality`.
+
+### Image generation models
+
+Used by `TextToImage` and `ImageToImage`.
+
+| Constant | Value | Notes |
+| --- | --- | --- |
+| `ImageModelSeedreamV5` | `seedream_v5` | Strongest editing, style transfer, multi-image fusion |
+| `ImageModelBanana` | `banana` | Fast |
+| `ImageModelBananaPro` | `banana_pro` | Higher quality |
+| `ImageModelBanana2` | `banana2` | Latest fast option |
+| `ImageModelChatImage2` | `chat_image_2` | Best quality |
+| `ImageModelChatImage25Flare` | `chat_image_2.5_flare` | 2.5 speed tier |
+| `ImageModelChatImage25Sunburst` | `chat_image_2.5_sunburst` | 2.5 fidelity tier |
+
+A few parameters are model-specific: `Quality` is accepted only by `chat_image_2` and the 2.5 models (other models reject the request), `Background` only by the 2.5 models, and `AspectRatio` only by the banana models — seedream and chat_image size their output through `Size` instead.
+
+`chat_image_1` and `chat_image_1.5` are omitted deliberately: they retire on 2026-10-23 and 2026-12-01 respectively. If you still need them during migration, pass them through `Extra`.
 
 ---
 

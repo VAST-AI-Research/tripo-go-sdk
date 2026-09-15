@@ -158,12 +158,20 @@ tripo3d.NewClient(tripo3d.ClientOptions{
 
 ## 传入图片 / 文件
 
-任何 `FileDescriptor`（或 `*FileDescriptor`）字段都可以用 `tripo3d.File(...)` 构建，它会自动判断是 URL 还是裸 file_token：
+所有接收图片或模型的接口都通过 `FileDescriptor` 类型的 `Input` 字段传入。用 `tripo3d.File(...)` 构建，具体是哪种引用由服务端自动推断 —— 公开 URL、`file_token`，或是需要复用其产物的上游任务 `task_id`：
 
 ```go
-f1 := tripo3d.File("https://example.com/hero.png")   // -> FileDescriptor{URL: "..."}
-f2 := tripo3d.File("8f2a4c...")                       // -> FileDescriptor{FileToken: "..."}
-f3 := tripo3d.FileDescriptor{Object: &tripo3d.ObjectRef{Bucket: "tripo-data", Key: "uploads/abc.png"}}
+tripo3d.File("https://example.com/hero.png") // 公开 URL
+tripo3d.File("8f2a4c...")                    // UploadFile 返回的 file_token
+tripo3d.File(previousTaskID)                 // 复用上游任务的产物
+```
+
+如果不想依赖推断，也可以用显式构造函数：
+
+```go
+tripo3d.FileURL("https://example.com/hero.png")
+tripo3d.FileToken("8f2a4c...")
+tripo3d.FileDescriptor{Object: &tripo3d.ObjectRef{Bucket: "tripo-data", Key: "uploads/abc.png"}}
 ```
 
 上传本地文件获取 `file_token`：
@@ -173,7 +181,22 @@ data, _ := os.ReadFile("./hero.png")
 uploaded, err := client.UploadFile(ctx, data, "hero.png", "image/png")
 
 taskID, err := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-	File: tripo3d.File(uploaded.FileToken),
+	Input: tripo3d.File(uploaded.FileToken),
+})
+```
+
+任务串联无需下载再上传，直接把上游 `task_id` 传进去即可：
+
+```go
+imageID, _ := client.TextToImage(ctx, tripo3d.TextToImageParams{
+	Prompt: "一个低面数木质藏宝箱",
+	Model:  tripo3d.String(tripo3d.ImageModelSeedreamV5),
+})
+client.WaitForTask(ctx, imageID, tripo3d.WaitOptions{})
+
+modelID, _ := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
+	Input: tripo3d.File(imageID),
+	Model: tripo3d.String(tripo3d.ModelVersionP2),
 })
 ```
 
@@ -196,10 +219,10 @@ tripo3d.TextToModelParams{
 ## 端到端流水线：游戏就绪角色
 
 ```go
-// 1. 图生 3D（P1 系列低面拓扑，游戏/移动端友好）
+// 1. 图生 3D（P 系列低面拓扑，游戏/移动端友好）
 modelID, _ := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-	File:      tripo3d.File("https://example.com/hero.png"),
-	Model:     tripo3d.String(tripo3d.ModelVersionP1),
+	Input:     tripo3d.File("https://example.com/hero.png"),
+	Model:     tripo3d.String(tripo3d.ModelVersionP2),
 	FaceLimit: tripo3d.Int64(5000),
 	Texture:   tripo3d.Bool(true),
 })
@@ -264,7 +287,7 @@ if err != nil {
 	var timeoutErr *tripo3d.TimeoutError
 	switch {
 	case errors.As(err, &taskErr):
-		log.Printf("任务 %s 失败：%s", taskErr.Task.TaskID, taskErr.Task.ErrorMsg)
+		log.Printf("任务 %s 失败：%s", taskErr.Task.TaskID, taskErr.Task.ErrorMessage)
 	case errors.As(err, &timeoutErr):
 		log.Printf("任务 %s 在 %s 内未完成", timeoutErr.TaskID, timeoutErr.Timeout)
 	default:
@@ -290,14 +313,46 @@ if err != nil {
 ## 常量枚举
 
 ```go
-tripo3d.TaskStatusSuccess          // "success"
-tripo3d.AnimationWalk              // "preset:walk"
-tripo3d.RigTypeBiped               // "biped"
-tripo3d.RigSpecMixamo              // "mixamo"
-tripo3d.ModelVersionH31            // "v3.1-20260211"
-tripo3d.ModelVersionP1             // "P1-20260311"
-tripo3d.OutputFormatFBX            // "FBX"
+tripo3d.TaskStatusSuccess              // "success"
+tripo3d.AnimationWalk                  // "preset:walk"
+tripo3d.RigTypeBiped                   // "biped"
+tripo3d.RigSpecMixamo                  // "mixamo"
+tripo3d.ModelVersionH31                // "v3.1-20260211"
+tripo3d.ModelVersionP2                 // "P2-20260801"
+tripo3d.ImageModelSeedreamV5           // "seedream_v5"
+tripo3d.ImageModelChatImage25Sunburst  // "chat_image_2.5_sunburst"
+tripo3d.OutputFormatFBX                // "FBX"
 ```
+
+### 3D 生成模型
+
+| 常量 | 取值 | 说明 |
+| --- | --- | --- |
+| `ModelVersionH31` | `v3.1-20260211` | 最新，质量最佳（默认） |
+| `ModelVersionH30` | `v3.0-20250812` | 稳定版，支持高级特性 |
+| `ModelVersionH25` | `v2.5-20250123` | 旧版本，不支持 `GeometryQuality` |
+| `ModelVersionP1` | `P1-20260311` | 低面数，干净拓扑 |
+| `ModelVersionP2` | `P2-20260801` | 新一代 P 系列，支持四边面输出。preview 版 |
+
+P 系列中只有 `ModelVersionP2` 支持 `Quad`，传给 `ModelVersionP1` 会返回 `400`。P1 同样不支持 `SmartLowPoly`、`GenerateParts` 和 `GeometryQuality`。
+
+### 生图模型
+
+用于 `TextToImage` 与 `ImageToImage`。
+
+| 常量 | 取值 | 说明 |
+| --- | --- | --- |
+| `ImageModelSeedreamV5` | `seedream_v5` | 最强编辑、风格迁移与多图融合 |
+| `ImageModelBanana` | `banana` | 快速 |
+| `ImageModelBananaPro` | `banana_pro` | 更高质量 |
+| `ImageModelBanana2` | `banana2` | 最新快速选项 |
+| `ImageModelChatImage2` | `chat_image_2` | 质量最佳 |
+| `ImageModelChatImage25Flare` | `chat_image_2.5_flare` | 2.5 系列速度档 |
+| `ImageModelChatImage25Sunburst` | `chat_image_2.5_sunburst` | 2.5 系列精修档 |
+
+部分参数是分模型的：`Quality` 仅 `chat_image_2` 和两个 2.5 模型支持（其它模型传入会直接报错），`Background` 仅两个 2.5 模型支持，`AspectRatio` 仅 banana 系列支持 —— seedream 和 chat_image 请改用 `Size` 控制出图尺寸。
+
+`chat_image_1` 与 `chat_image_1.5` 已被有意移除：它们将分别于 2026-10-23 和 2026-12-01 下线。迁移期间如果仍需使用，可通过 `Extra` 透传。
 
 ---
 

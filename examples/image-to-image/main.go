@@ -58,7 +58,8 @@ func main() {
 
 	fmt.Printf("> prompt: %s\n", prompt)
 	taskID, err := client.ImageToImage(ctx, tripo3d.ImageToImageParams{
-		File:   &file,
+		Input:  &file,
+		Model:  tripo3d.String(tripo3d.ImageModelSeedreamV5),
 		Prompt: tripo3d.String(prompt),
 	})
 	if err != nil {

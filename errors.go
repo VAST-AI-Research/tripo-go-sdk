@@ -53,8 +53,8 @@ type TaskError struct {
 
 func (e *TaskError) Error() string {
 	s := fmt.Sprintf("tripo3d: task %s ended with status %q", e.Task.TaskID, e.Task.Status)
-	if e.Task.ErrorMsg != "" {
-		s += ": " + e.Task.ErrorMsg
+	if e.Task.ErrorMessage != "" {
+		s += ": " + e.Task.ErrorMessage
 	}
 	if e.Task.ErrorCode != 0 {
 		s += fmt.Sprintf(" (error_code=%d)", e.Task.ErrorCode)

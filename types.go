@@ -1,9 +1,6 @@
 package tripo3d
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "encoding/json"
 
 // envelope is the standard `{ code, data, message, suggestion }` response
 // wrapper used by every Tripo3D v3 endpoint.
@@ -21,9 +18,14 @@ type ObjectRef struct {
 }
 
 // FileDescriptor is the shape accepted by every endpoint that takes an
-// image or model file as input. Exactly one of FileToken, URL, or Object
-// should normally be set.
+// image or model file as input. Exactly one of Ref, FileToken, URL, or
+// Object should normally be set.
 type FileDescriptor struct {
+	// Ref is a bare reference whose kind the server infers: a public URL, a
+	// file_token from Client.UploadFile, or the task_id of an earlier
+	// generation task whose output should be reused. It marshals as a plain
+	// JSON string, the form the v3 API documents.
+	Ref       string     `json:"-"`
 	FileToken string     `json:"file_token,omitempty"`
 	URL       string     `json:"url,omitempty"`
 	Object    *ObjectRef `json:"object,omitempty"`
@@ -32,33 +34,95 @@ type FileDescriptor struct {
 
 // IsEmpty reports whether none of the descriptor's fields are populated.
 func (f FileDescriptor) IsEmpty() bool {
-	return f.FileToken == "" && f.URL == "" && f.Object == nil
+	return f.Ref == "" && f.FileToken == "" && f.URL == "" && f.Object == nil
 }
 
-// File builds a FileDescriptor from a bare string: an absolute URL
-// (http:// or https://) is stored as URL, anything else is treated as an
-// already-uploaded file_token.
-func File(input string) FileDescriptor {
-	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		return FileDescriptor{URL: input}
+// MarshalJSON emits a bare string for a Ref-only descriptor (and for an
+// empty one, which the multiview endpoints use to skip a view), and the
+// explicit object form otherwise.
+func (f FileDescriptor) MarshalJSON() ([]byte, error) {
+	if f.Ref != "" {
+		return json.Marshal(f.Ref)
 	}
-	return FileDescriptor{FileToken: input}
+	if f.IsEmpty() {
+		return []byte(`""`), nil
+	}
+	type alias FileDescriptor
+	return json.Marshal(alias(f))
+}
+
+// UnmarshalJSON accepts either the bare string form or the object form.
+func (f *FileDescriptor) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = FileDescriptor{Ref: s}
+		return nil
+	}
+	type alias FileDescriptor
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*f = FileDescriptor(a)
+	return nil
+}
+
+// File builds a FileDescriptor from a bare reference — a URL, a
+// file_token, or a task_id — and lets the server infer which it is.
+func File(ref string) FileDescriptor {
+	return FileDescriptor{Ref: ref}
+}
+
+// FileURL builds a FileDescriptor that explicitly references a publicly
+// accessible image or model URL.
+func FileURL(url string) FileDescriptor {
+	return FileDescriptor{URL: url}
+}
+
+// FileToken builds a FileDescriptor that explicitly references a token
+// returned by Client.UploadFile.
+func FileToken(token string) FileDescriptor {
+	return FileDescriptor{FileToken: token}
+}
+
+// MultiviewPrompt is a single per-view edit instruction for
+// Client.EditMultiview.
+type MultiviewPrompt struct {
+	// Prompt describes the desired change, e.g. "change the shirt color to
+	// red".
+	Prompt string `json:"prompt"`
+	// View is the angle to apply the edit to: ViewFront, ViewLeft,
+	// ViewBack, or ViewRight.
+	View string `json:"view"`
 }
 
 // Task is a task snapshot as returned by GET /v3/tasks/{task_id} and
 // POST /v3/tasks/list.
 type Task struct {
-	TaskID          string          `json:"task_id"`
-	Type            string          `json:"type"`
-	Status          TaskStatus      `json:"status"`
-	Progress        int             `json:"progress,omitempty"`
-	Input           json.RawMessage `json:"input,omitempty"`
-	Output          *TaskOutput     `json:"output,omitempty"`
-	CreateTime      int64           `json:"create_time,omitempty"`
-	RunningLeftTime int64           `json:"running_left_time,omitempty"`
-	QueuingNum      int64           `json:"queuing_num,omitempty"`
-	ErrorCode       int64           `json:"error_code,omitempty"`
-	ErrorMsg        string          `json:"error_msg,omitempty"`
+	TaskID   string          `json:"task_id"`
+	Type     string          `json:"type"`
+	Status   TaskStatus      `json:"status"`
+	Progress int             `json:"progress,omitempty"`
+	Input    json.RawMessage `json:"input,omitempty"`
+	Output   *TaskOutput     `json:"output,omitempty"`
+
+	// CreditsConsumed is a decimal with up to two places (e.g. 48.00), so
+	// it is deliberately a float rather than an integer — VIP discounts
+	// produce fractional values that integer parsing would truncate.
+	CreditsConsumed float64 `json:"credits_consumed,omitempty"`
+
+	// CreatedAt and CompletedAt are ISO 8601 timestamps. CompletedAt is
+	// empty until the task reaches a terminal status.
+	CreatedAt   string `json:"created_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+
+	RunningLeftTime int64 `json:"running_left_time,omitempty"`
+	QueuingNum      int64 `json:"queuing_num,omitempty"`
+
+	// ErrorCode and ErrorMessage are populated when Status is
+	// TaskStatusFailed.
+	ErrorCode    int64  `json:"error_code,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
 
 	// Raw holds the complete, unparsed JSON object for this task, so callers
 	// can reach fields this struct doesn't model yet.
@@ -98,8 +162,14 @@ type TaskOutput struct {
 	PBRModel         string   `json:"pbr_model,omitempty"`
 	RenderedImage    string   `json:"rendered_image,omitempty"`
 	RenderedImageURL string   `json:"rendered_image_url,omitempty"`
-	Riggable         *bool    `json:"riggable,omitempty"`
-	RigType          string   `json:"rig_type,omitempty"`
+
+	// GeneratedImageURL is the output of the text-to-image and
+	// image-to-image endpoints. The 3D generation endpoints also populate
+	// it with the reference image they synthesised internally.
+	GeneratedImageURL string `json:"generated_image_url,omitempty"`
+
+	Riggable *bool  `json:"riggable,omitempty"`
+	RigType  string `json:"rig_type,omitempty"`
 
 	// Raw holds the complete, unparsed JSON object for this output.
 	Raw json.RawMessage `json:"-"`

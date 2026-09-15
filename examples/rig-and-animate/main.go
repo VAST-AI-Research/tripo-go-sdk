@@ -30,7 +30,7 @@ func main() {
 
 	// 1. Generate a base 3D model — the P1 line has clean, low-poly topology.
 	modelTaskID, err := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-		File:      tripo3d.File(imageURL),
+		Input:     tripo3d.File(imageURL),
 		Model:     tripo3d.String(tripo3d.ModelVersionP1),
 		FaceLimit: tripo3d.Int64(5000),
 		Texture:   tripo3d.Bool(true),

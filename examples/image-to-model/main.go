@@ -48,11 +48,11 @@ func main() {
 	}
 
 	taskID, err := client.ImageToModel(ctx, tripo3d.ImageToModelParams{
-		File:             file,
+		Input:            file,
 		Model:            tripo3d.String(tripo3d.ModelVersionH31),
 		Texture:          tripo3d.Bool(true),
 		PBR:              tripo3d.Bool(true),
-		TextureAlignment: tripo3d.String("original_image"),
+		TextureAlignment: tripo3d.String(tripo3d.TextureAlignmentOriginalImage),
 	})
 	if err != nil {
 		log.Fatal(err)
