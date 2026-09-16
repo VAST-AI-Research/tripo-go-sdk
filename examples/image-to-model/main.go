@@ -75,7 +75,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if downloaded != nil {
-		filename := fmt.Sprintf("tripo-%s.glb", taskID)
+		filename := downloaded.Filename("tripo-" + taskID)
 		if err := os.WriteFile(filename, downloaded.Data, 0o644); err != nil {
 			log.Fatal(err)
 		}

@@ -321,7 +321,7 @@ tripo3d.OutputFormatFBX                // "FBX"
 | `ModelVersionP1` | `P1-20260311` | Low-poly, clean topology |
 | `ModelVersionP2` | `P2-20260801` | Next-gen P series, quad output. Preview |
 
-`Quad` is accepted only by `ModelVersionP2` within the P series — sending it with `ModelVersionP1` returns a `400`. P1 also rejects `SmartLowPoly`, `GenerateParts`, and `GeometryQuality`.
+`Quad` is accepted only by `ModelVersionP2` within the P series — sending it with `ModelVersionP1` returns a `400`. P1 also rejects `SmartLowPoly`, `GenerateParts`, and `GeometryQuality`. Enabling `Quad` also forces the output format to **FBX** instead of GLB, so derive the file extension from `ModelURL` rather than assuming `.glb` — use `downloaded.Filename(name)` for that.
 
 ### Image generation models
 

@@ -1,6 +1,9 @@
 package tripo3d
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // envelope is the standard `{ code, data, message, suggestion }` response
 // wrapper used by every Tripo3D v3 endpoint.
@@ -233,4 +236,38 @@ type DownloadedModel struct {
 	URL         string
 	ContentType string
 	Data        []byte
+}
+
+// Extension returns the lower-case file extension of the downloaded model,
+// without the leading dot (e.g. "glb", "fbx"), or "" if the URL carries
+// none.
+//
+// Do not assume GLB: setting Quad on a generation task forces FBX output,
+// and Client.ConvertModel emits whichever format was requested.
+func (d *DownloadedModel) Extension() string {
+	if d == nil {
+		return ""
+	}
+	path := d.URL
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		path = path[:i]
+	}
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		path = path[i+1:]
+	}
+	i := strings.LastIndex(path, ".")
+	if i < 0 {
+		return ""
+	}
+	return strings.ToLower(path[i+1:])
+}
+
+// Filename returns a download-ready "<name>.<ext>" for this model, falling
+// back to "glb" when the URL carries no extension.
+func (d *DownloadedModel) Filename(name string) string {
+	ext := d.Extension()
+	if ext == "" {
+		ext = "glb"
+	}
+	return name + "." + ext
 }

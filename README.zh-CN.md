@@ -336,6 +336,8 @@ tripo3d.OutputFormatFBX                // "FBX"
 
 P 系列中只有 `ModelVersionP2` 支持 `Quad`，传给 `ModelVersionP1` 会返回 `400`。P1 同样不支持 `SmartLowPoly`、`GenerateParts` 和 `GeometryQuality`。
 
+另外，开启 `Quad` 会把输出格式强制为 **FBX** 而非 GLB，所以请从 `ModelURL` 推导扩展名，不要假定是 `.glb` —— 用 `downloaded.Filename(name)` 即可。
+
 ### 生图模型
 
 用于 `TextToImage` 与 `ImageToImage`。

@@ -632,3 +632,24 @@ func asRequestError(err error, target **RequestError) bool {
 	}
 	return false
 }
+
+func TestDownloadedModelExtensionTracksTheURL(t *testing.T) {
+	// quad=true generations return FBX, so the extension cannot be assumed.
+	for _, tc := range []struct {
+		url, wantExt, wantName string
+	}{
+		{"https://cdn/a/model.glb", "glb", "out.glb"},
+		{"https://cdn/a/model.fbx?auth_key=1-abc-0-def", "fbx", "out.fbx"},
+		{"https://cdn/a/model.USDZ#frag", "usdz", "out.usdz"},
+		{"https://cdn/a/model", "", "out.glb"},
+		{"https://cdn/a.b/model?x=1", "", "out.glb"},
+	} {
+		d := &DownloadedModel{URL: tc.url}
+		if got := d.Extension(); got != tc.wantExt {
+			t.Errorf("Extension(%q) = %q, want %q", tc.url, got, tc.wantExt)
+		}
+		if got := d.Filename("out"); got != tc.wantName {
+			t.Errorf("Filename(%q) = %q, want %q", tc.url, got, tc.wantName)
+		}
+	}
+}

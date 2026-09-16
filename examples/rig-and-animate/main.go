@@ -97,7 +97,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if downloaded != nil {
-		filename := fmt.Sprintf("character-%s.glb", animTaskID)
+		filename := downloaded.Filename("character-" + animTaskID)
 		if err := os.WriteFile(filename, downloaded.Data, 0o644); err != nil {
 			log.Fatal(err)
 		}

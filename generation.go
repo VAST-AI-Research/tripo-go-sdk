@@ -20,11 +20,16 @@ type TextToModelParams struct {
 	GeometryQuality *string `json:"geometry_quality,omitempty"`
 	FaceLimit       *int64  `json:"face_limit,omitempty"`
 	AutoSize        *bool   `json:"auto_size,omitempty"`
-	Quad            *bool   `json:"quad,omitempty"`
-	SmartLowPoly    *bool   `json:"smart_low_poly,omitempty"`
-	GenerateParts   *bool   `json:"generate_parts,omitempty"`
-	Compress        *string `json:"compress,omitempty"`
-	ExportUV        *bool   `json:"export_uv,omitempty"`
+
+	// Quad outputs a quad mesh instead of triangles, which forces the
+	// output format to FBX rather than GLB. Within the P series only
+	// ModelVersionP2 accepts it.
+	Quad *bool `json:"quad,omitempty"`
+
+	SmartLowPoly  *bool   `json:"smart_low_poly,omitempty"`
+	GenerateParts *bool   `json:"generate_parts,omitempty"`
+	Compress      *string `json:"compress,omitempty"`
+	ExportUV      *bool   `json:"export_uv,omitempty"`
 
 	// ExportOrientation sets the forward axis of the exported model; see
 	// the ExportOrientation constants.
@@ -68,11 +73,16 @@ type ImageToModelParams struct {
 	FaceLimit          *int64         `json:"face_limit,omitempty"`
 	AutoSize           *bool          `json:"auto_size,omitempty"`
 	Orientation        *string        `json:"orientation,omitempty"`
-	Quad               *bool          `json:"quad,omitempty"`
-	SmartLowPoly       *bool          `json:"smart_low_poly,omitempty"`
-	GenerateParts      *bool          `json:"generate_parts,omitempty"`
-	Compress           *string        `json:"compress,omitempty"`
-	ExportUV           *bool          `json:"export_uv,omitempty"`
+
+	// Quad outputs a quad mesh instead of triangles, which forces the
+	// output format to FBX rather than GLB. Within the P series only
+	// ModelVersionP2 accepts it.
+	Quad *bool `json:"quad,omitempty"`
+
+	SmartLowPoly  *bool   `json:"smart_low_poly,omitempty"`
+	GenerateParts *bool   `json:"generate_parts,omitempty"`
+	Compress      *string `json:"compress,omitempty"`
+	ExportUV      *bool   `json:"export_uv,omitempty"`
 
 	// ExportOrientation sets the forward axis of the exported model; see
 	// the ExportOrientation constants.
@@ -113,18 +123,23 @@ type MultiviewToModelParams struct {
 	// Inputs.
 	InputTaskID *string `json:"-"`
 
-	Model             *string `json:"model,omitempty"`
-	ModelSeed         *int64  `json:"model_seed,omitempty"`
-	TextureSeed       *int64  `json:"texture_seed,omitempty"`
-	Texture           *bool   `json:"texture,omitempty"`
-	PBR               *bool   `json:"pbr,omitempty"`
-	TextureQuality    *string `json:"texture_quality,omitempty"`
-	GeometryQuality   *string `json:"geometry_quality,omitempty"`
-	TextureAlignment  *string `json:"texture_alignment,omitempty"`
-	FaceLimit         *int64  `json:"face_limit,omitempty"`
-	AutoSize          *bool   `json:"auto_size,omitempty"`
-	Orientation       *string `json:"orientation,omitempty"`
-	Quad              *bool   `json:"quad,omitempty"`
+	Model            *string `json:"model,omitempty"`
+	ModelSeed        *int64  `json:"model_seed,omitempty"`
+	TextureSeed      *int64  `json:"texture_seed,omitempty"`
+	Texture          *bool   `json:"texture,omitempty"`
+	PBR              *bool   `json:"pbr,omitempty"`
+	TextureQuality   *string `json:"texture_quality,omitempty"`
+	GeometryQuality  *string `json:"geometry_quality,omitempty"`
+	TextureAlignment *string `json:"texture_alignment,omitempty"`
+	FaceLimit        *int64  `json:"face_limit,omitempty"`
+	AutoSize         *bool   `json:"auto_size,omitempty"`
+	Orientation      *string `json:"orientation,omitempty"`
+
+	// Quad outputs a quad mesh instead of triangles, which forces the
+	// output format to FBX rather than GLB. Within the P series only
+	// ModelVersionP2 accepts it.
+	Quad *bool `json:"quad,omitempty"`
+
 	SmartLowPoly      *bool   `json:"smart_low_poly,omitempty"`
 	GenerateParts     *bool   `json:"generate_parts,omitempty"`
 	Compress          *string `json:"compress,omitempty"`
