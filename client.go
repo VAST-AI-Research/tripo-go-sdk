@@ -58,7 +58,7 @@ type Client struct {
 
 // SDKVersion is the current tripo3d-sdk-go release version, also used as
 // part of the default User-Agent header.
-const SDKVersion = "0.1.0"
+const SDKVersion = "0.3.0"
 
 // NewClient builds a Client, reading TRIPO_API_KEY from the environment
 // when opts.APIKey is empty.
