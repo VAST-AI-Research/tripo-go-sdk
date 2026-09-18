@@ -3,11 +3,14 @@ package tripo3d
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -651,5 +654,139 @@ func TestDownloadedModelExtensionTracksTheURL(t *testing.T) {
 		if got := d.Filename("out"); got != tc.wantName {
 			t.Errorf("Filename(%q) = %q, want %q", tc.url, got, tc.wantName)
 		}
+	}
+}
+
+// ──────────────────── Retry safety (billing-sensitive) ────────────────────
+//
+// Task-creation endpoints are billed per submission, so a POST must never be
+// replayed once the server may have seen it. These tests pin the exact number
+// of times the request reaches the handler.
+
+// newRetryTestServer counts handler invocations and disables connection reuse
+// so net/http's own idempotent-replay logic cannot skew the counts.
+func newRetryTestServer(t *testing.T, handler http.HandlerFunc) (*Client, func() int) {
+	t.Helper()
+	var mu sync.Mutex
+	hits := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		handler(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+		Timeout: 5 * time.Second,
+		Retries: 2,
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{DisableKeepAlives: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return client, func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return hits
+	}
+}
+
+// dropConnection accepts the request and then tears the socket down without
+// replying, which surfaces to the caller as a reset mid-flight.
+func dropConnection(w http.ResponseWriter, _ *http.Request) {
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		panic("test server does not support hijacking")
+	}
+	conn, _, err := hj.Hijack()
+	if err != nil {
+		panic(err)
+	}
+	_ = conn.Close()
+}
+
+func statusHandler(status int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, status, map[string]interface{}{"code": 1000, "message": "nope"})
+	}
+}
+
+func billableCall(client *Client) error {
+	input := File("https://example.com/a.png")
+	_, err := client.ImageToImage(context.Background(), ImageToImageParams{
+		Prompt: String("x"),
+		Input:  &input,
+	})
+	return err
+}
+
+func indeterminateOf(err error) bool {
+	var reqErr *RequestError
+	if errors.As(err, &reqErr) {
+		return reqErr.Indeterminate
+	}
+	return false
+}
+
+func TestBillablePostIsNotReplayedWhenConnectionDropsMidFlight(t *testing.T) {
+	client, hits := newRetryTestServer(t, dropConnection)
+	err := billableCall(client)
+	if got := hits(); got != 1 {
+		t.Fatalf("submitted %d times, want exactly 1", got)
+	}
+	if !indeterminateOf(err) {
+		t.Fatalf("error must be flagged indeterminate, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "billed twice") {
+		t.Errorf("error should warn about double billing, got %q", err)
+	}
+}
+
+func TestBillablePostIsReplayedWhenServerDeclinesOutright(t *testing.T) {
+	// 429 means the server refused the work, so a retry cannot double-bill.
+	client, hits := newRetryTestServer(t, statusHandler(http.StatusTooManyRequests))
+	_ = billableCall(client)
+	if got := hits(); got != 3 {
+		t.Fatalf("attempted %d times, want 3 (Retries: 2)", got)
+	}
+}
+
+func TestBillablePostIsNotReplayedOnAmbiguousStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusInternalServerError, http.StatusBadGateway, http.StatusGatewayTimeout} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			client, hits := newRetryTestServer(t, statusHandler(status))
+			err := billableCall(client)
+			if got := hits(); got != 1 {
+				t.Fatalf("submitted %d times, want exactly 1", got)
+			}
+			if !indeterminateOf(err) {
+				t.Errorf("error must be flagged indeterminate, got %v", err)
+			}
+		})
+	}
+}
+
+func TestIdempotentGetIsStillRetried(t *testing.T) {
+	for name, handler := range map[string]http.HandlerFunc{
+		"connection dropped": dropConnection,
+		"500":                statusHandler(http.StatusInternalServerError),
+		"429":                statusHandler(http.StatusTooManyRequests),
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, hits := newRetryTestServer(t, handler)
+			_, err := client.GetTask(context.Background(), "t1")
+			if got := hits(); got != 3 {
+				t.Fatalf("attempted %d times, want 3", got)
+			}
+			if indeterminateOf(err) {
+				t.Errorf("idempotent reads are never indeterminate, got %v", err)
+			}
+		})
 	}
 }

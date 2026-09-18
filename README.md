@@ -297,6 +297,34 @@ Cancel a poll with `context.WithTimeout` / `context.WithCancel` — `WaitForTask
 
 ---
 
+### Retries and duplicate submissions
+
+Task-creation calls are billed per submission, so the SDK never replays a
+request the server may already have accepted. A failure is retried only when
+it proves the request was never processed — the connection was refused, DNS
+failed, or the server answered `429` / `503`. Ambiguous failures (a reset
+mid-flight, a timeout, `500` / `502` / `504`) end the call immediately for
+non-idempotent requests, while idempotent reads keep retrying as before.
+
+When a task-creation call fails ambiguously, the error is flagged so you can
+tell "definitely failed" apart from "unknown":
+
+```go
+taskID, err := client.ImageToImage(ctx, params)
+if err != nil {
+    var reqErr *tripo3d.RequestError
+    if errors.As(err, &reqErr) && reqErr.Indeterminate {
+        // The submission may have gone through. Check ListTasks rather
+        // than resubmitting.
+        return err
+    }
+    // Definitely failed; safe to retry yourself.
+}
+```
+
+Reconcile against your task list before resubmitting; retrying blindly is
+what causes double charges.
+
 ## Constants
 
 ```go

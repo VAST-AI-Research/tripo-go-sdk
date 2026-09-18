@@ -32,6 +32,12 @@ type RequestError struct {
 	StatusCode int
 	Body       string
 	Err        error
+
+	// Indeterminate reports that the request may have been processed by the
+	// server despite the failure. Resubmitting a billed task-creation
+	// request in this state risks being charged twice; reconcile against
+	// ListTasks first.
+	Indeterminate bool
 }
 
 func (e *RequestError) Error() string {

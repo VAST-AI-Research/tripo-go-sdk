@@ -4,21 +4,48 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
-var defaultRetryStatuses = map[int]bool{
-	408: true, 425: true, 429: true, 500: true, 502: true, 503: true, 504: true,
-}
+// retrySafety describes what a failure tells us about whether the server
+// acted on the request. Task-creation endpoints are billed per submission,
+// so replaying a request that may already have been processed can charge the
+// caller twice.
+type retrySafety int
+
+const (
+	// safetyFatal is a non-transient failure: never retry.
+	safetyFatal retrySafety = iota
+	// safetyUnknown means the request may or may not have been processed.
+	// Only idempotent methods may be retried.
+	safetyUnknown
+	// safetyClean means the server provably never acted on the request, so
+	// a retry is safe regardless of method.
+	safetyClean
+)
+
+// Statuses where the server answered and told us it declined to do the work.
+var cleanRetryStatuses = map[int]bool{429: true, 503: true}
+
+// Statuses where the server answered but whether it processed the request is
+// unknowable — a 504 in particular is often emitted by a proxy after the
+// origin already accepted the work.
+var unknownRetryStatuses = map[int]bool{408: true, 425: true, 500: true, 502: true, 504: true}
+
+const indeterminateHint = "the server may already have accepted this request, so it was not retried automatically; " +
+	"check your task list before resubmitting to avoid being billed twice"
 
 func (c *Client) buildURL(path string) string {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
@@ -41,6 +68,7 @@ func (c *Client) execute(ctx context.Context, method, path string, body interfac
 
 	totalAttempts := c.retries + 1
 	targetURL := c.buildURL(path)
+	idempotent := isIdempotentMethod(method)
 
 	for attempt := 1; attempt <= totalAttempts; attempt++ {
 		reqCtx, cancel := context.WithTimeout(ctx, c.timeout)
@@ -63,31 +91,46 @@ func (c *Client) execute(ctx context.Context, method, path string, body interfac
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			cancel()
-			if attempt < totalAttempts && isRetryableNetErr(ctx, err) {
+			safety := classifyNetErr(ctx, err)
+			if canRetry(safety, idempotent) && attempt < totalAttempts {
 				time.Sleep(backoff(attempt, ""))
 				continue
 			}
-			return nil, 0, &RequestError{Message: fmt.Sprintf("network error: %v", err), Err: err}
+			return nil, 0, newRequestError(
+				fmt.Sprintf("network error: %v", err),
+				0, "", err,
+				safety == safetyUnknown && !idempotent,
+			)
 		}
 
 		data, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		cancel()
 		if readErr != nil {
-			if attempt < totalAttempts {
+			// The server responded, so it has already done the work; the
+			// failure is purely in reading the reply back.
+			if idempotent && attempt < totalAttempts {
 				time.Sleep(backoff(attempt, ""))
 				continue
 			}
-			return nil, resp.StatusCode, &RequestError{
-				Message:    fmt.Sprintf("failed to read response body: %v", readErr),
-				StatusCode: resp.StatusCode,
-				Err:        readErr,
-			}
+			return nil, resp.StatusCode, newRequestError(
+				fmt.Sprintf("failed to read response body: %v", readErr),
+				resp.StatusCode, "", readErr,
+				!idempotent,
+			)
 		}
 
-		if defaultRetryStatuses[resp.StatusCode] && attempt < totalAttempts {
+		safety := classifyStatus(resp.StatusCode)
+		if canRetry(safety, idempotent) && attempt < totalAttempts {
 			time.Sleep(backoff(attempt, resp.Header.Get("Retry-After")))
 			continue
+		}
+		if safety == safetyUnknown && !idempotent {
+			return nil, resp.StatusCode, newRequestError(
+				fmt.Sprintf("HTTP %d", resp.StatusCode),
+				resp.StatusCode, string(data), nil,
+				true,
+			)
 		}
 
 		return data, resp.StatusCode, nil
@@ -248,12 +291,68 @@ func buildPayload(v interface{}, extra map[string]interface{}) (map[string]inter
 	return m, nil
 }
 
-func isRetryableNetErr(ctx context.Context, err error) bool {
-	if ctx.Err() != nil {
-		// Caller-supplied context was cancelled/expired — never retry that.
+func isIdempotentMethod(method string) bool {
+	return method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+}
+
+func canRetry(safety retrySafety, idempotent bool) bool {
+	switch safety {
+	case safetyClean:
+		return true
+	case safetyUnknown:
+		return idempotent
+	default:
 		return false
 	}
-	return true
+}
+
+func classifyStatus(status int) retrySafety {
+	switch {
+	case cleanRetryStatuses[status]:
+		return safetyClean
+	case unknownRetryStatuses[status]:
+		return safetyUnknown
+	default:
+		return safetyFatal
+	}
+}
+
+// classifyNetErr decides how much a transport error tells us about whether
+// the request reached the server's handler.
+func classifyNetErr(ctx context.Context, err error) retrySafety {
+	if ctx.Err() != nil {
+		// Caller-supplied context was cancelled/expired — never retry that.
+		return safetyFatal
+	}
+
+	// Name resolution never produced a connection, and a refused or
+	// unreachable peer never accepted one, so the request was never sent.
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return safetyClean
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH) {
+		return safetyClean
+	}
+
+	// Everything else — resets, broken pipes, per-attempt timeouts — can
+	// happen after the server has already read and acted on the request.
+	return safetyUnknown
+}
+
+func newRequestError(message string, status int, body string, err error, indeterminate bool) *RequestError {
+	if indeterminate {
+		message = message + "; " + indeterminateHint
+	}
+	return &RequestError{
+		Message:       message,
+		StatusCode:    status,
+		Body:          body,
+		Err:           err,
+		Indeterminate: indeterminate,
+	}
 }
 
 func backoff(attempt int, retryAfterHeader string) time.Duration {
